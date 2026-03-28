@@ -95,6 +95,7 @@ class Adam(Optimizer):
         self.m2 = {}
 
     def add(self, *states: State) -> None:
+        """Add states to client list."""
         super().add(*states)
         for s in states:
             self.m1[s] = State(s.index, {}, 0.0)
@@ -104,6 +105,7 @@ class Adam(Optimizer):
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.LEARNING
     ) -> Event:
+        """Update all client states."""
         event = super().update(dt, priority)
         b1 = self.params[0][~self.p.b1]
         b2 = self.params[0][~self.p.b2]

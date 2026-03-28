@@ -26,6 +26,7 @@ class LearningSignal(Component):
 
 
 class TDLearning[D: Nodes, R: Nodes](LearningSignal, Choice[D]):
+    """A choice process with support for temporal difference learning."""
     
     d: D
     r: R
@@ -114,7 +115,7 @@ class TDLearning[D: Nodes, R: Nodes](LearningSignal, Choice[D]):
              ForwardUpdate(self.reward, {})],
             dt, priority)
 
-    def send(self, d: dict[Term | Key, float], 
+    def send(self, d: dict[Term, float] | dict[Key, float], 
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> Event:

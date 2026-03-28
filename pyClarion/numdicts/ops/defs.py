@@ -298,7 +298,7 @@ class Sum[D: "nd.NumDict"](Aggregator[D]):
         c: float | _Undefined | None = None 
     ) -> D | Sequence[D]:
         if len(ds) == 0:
-            return g
+            return d.ones().mul(g, by=by)
         elif 0 < len(ds):
             if by is None or isinstance(by, KeyForm):
                 by = (by,) * len(ds)
@@ -324,10 +324,10 @@ class Mul[D: "nd.NumDict"](Aggregator[D]):
         elif 0 < len(ds):
             factors = (d, *ds)
             if by is None or isinstance(by, KeyForm):
-                by = (None, *(by for _ in ds))
+                by = (d.i.kf, *(by for _ in ds))
             else:
-                by = (None, *by)
-            lhs, rhs = [d.ones().mul(g)], [d.ones()]
+                by = (d.i.kf, *by)
+            lhs, rhs = [d.ones()], [d.ones()]
             it = zip(factors[:-1], by[:-1], 
                 reversed(factors[1:]), reversed(by[1:]), strict=True)
             for f1, by1, f2, by2 in it:
@@ -335,7 +335,7 @@ class Mul[D: "nd.NumDict"](Aggregator[D]):
                 rhs.append(rhs[-1].mul(f2, by=by2))
             gs = []
             for _d, _by, f1, f2 in zip(factors, by, lhs, reversed(rhs)):
-                gs.append(f1.mul(f2).sum(by=_by or _d._i.kf, c=0.0))
+                gs.append(g.mul(f1,f2).sum(by=_by or _d._i.kf, c=0.0))
             return tuple(gs)
         else:
             assert False
