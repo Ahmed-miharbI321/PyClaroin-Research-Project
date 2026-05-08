@@ -62,7 +62,7 @@ class WCSTRoot(Root):
     b: WCSTBuses
     d: WCSTData
 
-# Context of agent is stored in "root" variable
+# Context of environment is stored in "root" variable
 root = WCSTRoot()
 
 # Class represents WCST tester
@@ -72,7 +72,7 @@ class WCSTTester:
     def __init__(self, rules, switch_every):
 
         # List of rules atoms
-        self.rules = list(rules)
+        self.rules = rules
 
         # Randomly choose hidden rule
         self.hidden_rule = random.choice(self.rules)
@@ -120,7 +120,7 @@ class RuleChoice:
 
     # Initialize with a random rule
     def __init__(self, rules):
-        self.rules = list(rules)
+        self.rules = rules
         self.current_rule = random.choice(self.rules)
 
     # Return the rule choice
@@ -160,16 +160,10 @@ class WCSTModel:
     def __init__(self, switch_every):
         
         # Possible rules
-        self.rules = [
-            root.d.rule.color,
-            root.d.rule.shape,
-            root.d.rule.number,
-        ]
-
-        self.switch_every = switch_every
+        self.rules = [root.d.rule.color,root.d.rule.shape,root.d.rule.number]
 
         # Tester
-        self.task = WCSTTester(self.rules, self.switch_every)
+        self.task = WCSTTester(self.rules, switch_every)
         # Testee NACS
         self.nacs = RuleChoice(self.rules)
         # Testee ACS
