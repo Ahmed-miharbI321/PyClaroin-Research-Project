@@ -95,6 +95,9 @@ class WCSTTester:
         # Initialize number before switching rule
         self.switch_every = switch_every
 
+        # Keep track of original maximum number of trials before switching
+        self.original_switch_every = switch_every
+
     # Function to give feedback to testee
     def give_feedback(self, given_action):
 
@@ -116,7 +119,7 @@ class WCSTTester:
             self.previous_rule = self.hidden_rule
             options = [r for r in self.rules if r != self.hidden_rule]
             self.hidden_rule = random.choice(options)
-            self.switch_every = random.randint(5,10)
+            self.switch_every = random.randint(5,self.original_switch_every)
         
         # Return the result of the testee's choice
         if correct:
@@ -142,7 +145,7 @@ class RuleChoice:
         # List of rules from tuple
         rule_list = [x[0] for x in self.rule_prob_comp]
 
-        # Pick the 
+        # Pick between a percentage of rules (highest probability percentage has best chance of being picked)
         self.chosen_rule = random.choices(rule_list, weights=prob_list, k =1)[0]
 
         return self.chosen_rule
