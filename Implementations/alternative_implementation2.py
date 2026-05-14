@@ -62,8 +62,17 @@ class WCSTRoot(Root):
     b: WCSTBuses
     d: WCSTData
 
-# Context of environment is stored in "root" variable
+# Context of the environment is stored in "root" variable
 root = WCSTRoot()
+
+# Define short handles for data sorts
+color = root.d.color   
+shape = root.d.shape  
+number = root.d.number 
+rule = root.d.rule
+feedback = root.d.feedback
+action = root.d.action
+
 
 # Class represents WCST tester
 class WCSTTester:
@@ -87,17 +96,17 @@ class WCSTTester:
         self.switch_every = switch_every
 
     # Function to give feedback to testee
-    def give_feedback(self, action):
+    def give_feedback(self, given_action):
 
         # Compare the action of the testee to the tester's hidden rule
-        if self.hidden_rule == root.d.rule.color:
-            correct = action == root.d.action.match_color
+        if self.hidden_rule == rule.color:
+            correct = given_action == action.match_color
 
-        elif self.hidden_rule == root.d.rule.shape:
-            correct = action == root.d.action.match_shape
+        elif self.hidden_rule == rule.shape:
+            correct = given_action == action.match_shape
 
-        elif self.hidden_rule == root.d.rule.number:
-            correct = action == root.d.action.match_number
+        elif self.hidden_rule == rule.number:
+            correct = given_action == action.match_number
         
         # Increment the number of trials after the testee has chosen.
         self.trial += 1
@@ -107,31 +116,64 @@ class WCSTTester:
             self.previous_rule = self.hidden_rule
             options = [r for r in self.rules if r != self.hidden_rule]
             self.hidden_rule = random.choice(options)
+            self.switch_every = random.randint(5,10)
         
         # Return the result of the testee's choice
         if correct:
-            return root.d.feedback.correct
+            return feedback.correct
         else:
-            return root.d.feedback.incorrect
+            return feedback.incorrect
 
 
-# Class represents NACS, which is responsible for general knowledge and reasoning
+# Class represents NACS, which is responsible for general knowledge and reasoning, and the motivational subsystem which provides motivations for cognition (in this case, why one choice over another).
 class RuleChoice:
 
-    # Initialize with a random rule
+    # Initial probability of rules, rules and probability tuple initialization
     def __init__(self, rules):
         self.rules = rules
-        self.current_rule = random.choice(self.rules)
+        self.init_probs = [1/3,1/3,1/3]
+        self.rule_prob_comp = list(zip(self.rules,self.init_probs)) # A list of tuples of rules and their coresponding probability of being correct
+        self.chosen_rule = None
 
     # Return the rule choice
     def choose_rule(self):
-        return self.current_rule
+        # List of probabilities from tuple
+        prob_list = [x[1] for x in self.rule_prob_comp]
+        # List of rules from tuple
+        rule_list = [x[0] for x in self.rule_prob_comp]
+
+        # Pick the 
+        self.chosen_rule = random.choices(rule_list, weights=prob_list, k =1)[0]
+
+        return self.chosen_rule
 
     # Update the rule based on the feedback
-    def update_rule(self, feedback):
-        if feedback == root.d.feedback.incorrect:
-            options = [r for r in self.rules if r != self.current_rule]
-            self.current_rule = random.choice(options)
+    def update_rule(self, given_feedback):
+        # If the chosen rule is incorrect
+        if given_feedback == feedback.incorrect:
+        
+            # If the feedback was incorrect and there are no more choices to make
+            if sum(prob == 1 for _,prob in self.rule_prob_comp) == 1:
+                self.rule_prob_comp = [(rule, 1/3) for rule, _ in self.rule_prob_comp]
+
+            # If the feedback was incorrect but there are two or three more choices to make
+            else:
+                # Turn the prob of the incorrect rule to 0
+                self.rule_prob_comp = [(rule, 0) if rule == self.chosen_rule else (rule, prob) for rule, prob in self.rule_prob_comp ]
+
+                # New total of probabilities
+                total_prob = sum(prob for _,prob in self.rule_prob_comp)
+
+                # Get new probability value of remaining rule choices
+                self.rule_prob_comp = [(rule, prob / total_prob)for rule, prob in self.rule_prob_comp ]
+
+        else:
+            # If the chosen rule was correct, change it's probability of being correect to 100, and everything else to 0
+            self.rule_prob_comp = [(rule, 1 if rule == self.chosen_rule else 0)for rule, _ in self.rule_prob_comp]
+
+        # Choose a new rule with altered probs based on feedback
+        self.current_rule = self.choose_rule()
+        
 
 # Class represents ACS, which is responsible for taking action based on a choice.
 class MakeChoice:
@@ -143,15 +185,15 @@ class MakeChoice:
     # Methond for choosing action
     def choose_action(self, chosen_rule):
         # Color
-        if chosen_rule == root.d.rule.color:
-            return root.d.action.match_color
+        if chosen_rule == rule.color:
+            return action.match_color
         # Shape
-        if chosen_rule == root.d.rule.shape:
-            return root.d.action.match_shape
+        if chosen_rule == rule.shape:
+            return action.match_shape
 
         # Number 
-        if chosen_rule == root.d.rule.number:
-            return root.d.action.match_number
+        if chosen_rule == rule.number:
+            return action.match_number
 
 # Class is the WCST simulation
 class WCSTModel:
@@ -160,7 +202,7 @@ class WCSTModel:
     def __init__(self, switch_every):
         
         # Possible rules
-        self.rules = [root.d.rule.color,root.d.rule.shape,root.d.rule.number]
+        self.rules = [rule.color,rule.shape,rule.number]
 
         # Tester
         self.task = WCSTTester(self.rules, switch_every)
@@ -173,6 +215,8 @@ class WCSTModel:
         self.errors = 0
         # Perservation errors, which occur when the testee has picked a rule that was previously correct, but is now incorrect.
         self.perseveration_errors = 0
+        # Total correct
+        self.correct = 0
 
     # Function for running the trial
     def run_trial(self):
@@ -184,20 +228,21 @@ class WCSTModel:
         previous_rule = self.task.previous_rule
         
         # Give feedback to the action
-        feedback = self.task.give_feedback(action)
+        given_feedback = self.task.give_feedback(action)
 
         # if the feedback is incorrect
-        if feedback == root.d.feedback.incorrect:
+        if given_feedback == feedback.incorrect:
             # increase the total number of errors
             self.errors += 1
 
             # If the chosen rule is the same as the previous rule.
             if previous_rule is not None and chosen_rule == previous_rule:
                 self.perseveration_errors += 1
+        elif given_feedback == feedback.correct:
+            self.correct += 1
 
         # update the rule based on feeback.
-        self.nacs.update_rule(feedback)
-
+        self.nacs.update_rule(given_feedback)
 
 # Testing
 model = WCSTModel(10)
@@ -208,5 +253,12 @@ for _ in range(50):
 
 # Print the total and perservation errors.
 print("Errors:", model.errors)
+print("Correct:", model.correct)
 print("Perseveration errors:", model.perseveration_errors)
+
+
+
+
+
+
 
