@@ -2,6 +2,8 @@ from pyClarion import *
 from pyClarion.knowledge import * 
 import random
 
+import time # to pause between trials
+
 # Step 1 : Implement context of agent; shape, color, or number of card; Rule of current trial; Action agent can take; and Feedback from the tester.
 
 class Color(Atoms): 
@@ -37,7 +39,7 @@ class Action(Atoms):
     match_color: Atom
     match_number: Atom
     match_shape: Atom
-
+            
 
 class Main(Buses):
     input: Bus
@@ -97,13 +99,24 @@ class WCSTTester:
 
         # Keep track of original maximum number of trials before switching
         self.original_switch_every = switch_every
+    
+    # Turning actions to strings for printing
+    def to_string(self, the_action):
+        if the_action == action.match_color:
+            return "matching color"
+        if the_action == action.match_shape:
+            return "matching shape"
+        if the_action == action.match_number:
+            return "matching number"
 
     # Function to give feedback to testee
     def give_feedback(self, given_action):
+        # Testee's picke rule
 
         # Compare the action of the testee to the tester's hidden rule
         if self.hidden_rule == rule.color:
             correct = given_action == action.match_color
+
 
         elif self.hidden_rule == rule.shape:
             correct = given_action == action.match_shape
@@ -123,12 +136,14 @@ class WCSTTester:
         
         # Return the result of the testee's choice
         if correct:
+            print("Tester:", self.to_string(given_action), "was correct")
             return feedback.correct
         else:
+            print("Tester:", self.to_string(given_action), "was incorrect")
             return feedback.incorrect
 
 
-# Class represents NACS, which is responsible for general knowledge and reasoning, and the motivational subsystem which provides motivations for cognition (in this case, why one choice over another).
+# Class represents NACS, which is responsible for general knowledge and reasoning, and the MS (Motivational subsystem) which provides motivations for cognition (in this case, why one choice over another).
 class RuleChoice:
 
     # Initial probability of rules, rules and probability tuple initialization
@@ -138,6 +153,15 @@ class RuleChoice:
         self.rule_prob_comp = list(zip(self.rules,self.init_probs)) # A list of tuples of rules and their coresponding probability of being correct
         self.chosen_rule = None
 
+    # Turning rules to strings for printing
+    def to_string(self, the_rule):
+        if the_rule == rule.color:
+            return "color"
+        if the_rule == rule.shape:
+            return "shape"
+        if the_rule == rule.number:
+            return "number"
+    
     # Return the rule choice
     def choose_rule(self):
         # List of probabilities from tuple
@@ -148,6 +172,10 @@ class RuleChoice:
         # Pick between a percentage of rules (highest probability percentage has best chance of being picked)
         self.chosen_rule = random.choices(rule_list, weights=prob_list, k =1)[0]
 
+        print("I will match with", self.to_string(self.chosen_rule))
+
+        time.sleep(1)
+
         return self.chosen_rule
 
     # Update the rule based on the feedback
@@ -157,7 +185,7 @@ class RuleChoice:
         
             # If the feedback was incorrect and there are no more choices to make
             if sum(prob == 1 for _,prob in self.rule_prob_comp) == 1:
-                self.rule_prob_comp = [(rule, 1/3) for rule, _ in self.rule_prob_comp]
+                self.rule_prob_comp = [(rule, 1/3) for rule, _ in self.rule_prob_comp] # Reset the proabilities for the rules
 
             # If the feedback was incorrect but there are two or three more choices to make
             else:
@@ -167,7 +195,7 @@ class RuleChoice:
                 # New total of probabilities
                 total_prob = sum(prob for _,prob in self.rule_prob_comp)
 
-                # Get new probability value of remaining rule choices
+                # Get new probability value of remaining rule choice(s)
                 self.rule_prob_comp = [(rule, prob / total_prob)for rule, prob in self.rule_prob_comp ]
 
         else:
@@ -180,10 +208,6 @@ class RuleChoice:
 
 # Class represents ACS, which is responsible for taking action based on a choice.
 class MakeChoice:
-
-    # Initialize with the context of environment
-    def __init__(self, root):
-        self.root = root
 
     # Methond for choosing action
     def choose_action(self, chosen_rule):
@@ -209,10 +233,10 @@ class WCSTModel:
 
         # Tester
         self.task = WCSTTester(self.rules, switch_every)
-        # Testee NACS
-        self.nacs = RuleChoice(self.rules)
+        # Testee NACS, MS 
+        self.nacs_ms = RuleChoice(self.rules)
         # Testee ACS
-        self.acs = MakeChoice(root)
+        self.acs = MakeChoice()
 
         # Total errors
         self.errors = 0
@@ -223,7 +247,7 @@ class WCSTModel:
 
     # Function for running the trial
     def run_trial(self):
-        chosen_rule = self.nacs.choose_rule()
+        chosen_rule = self.nacs_ms.choose_rule()
         # Choose action based on assumed rule
         action = self.acs.choose_action(chosen_rule)
 
@@ -245,7 +269,7 @@ class WCSTModel:
             self.correct += 1
 
         # update the rule based on feeback.
-        self.nacs.update_rule(given_feedback)
+        self.nacs_ms.update_rule(given_feedback)
 
 # Testing
 model = WCSTModel(10)
