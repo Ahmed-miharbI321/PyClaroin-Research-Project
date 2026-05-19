@@ -111,7 +111,6 @@ class WCSTTester:
 
     # Function to give feedback to testee
     def give_feedback(self, given_action):
-        # Testee's picke rule
 
         # Compare the action of the testee to the tester's hidden rule
         if self.hidden_rule == rule.color:
@@ -135,6 +134,7 @@ class WCSTTester:
             self.switch_every = random.randint(5,self.original_switch_every)
         
         # Return the result of the testee's choice
+        time.sleep(1)
         if correct:
             print("Tester:", self.to_string(given_action), "was correct")
             return feedback.correct
@@ -151,7 +151,7 @@ class RuleChoice:
         self.rules = rules
         self.init_probs = [1/3,1/3,1/3]
         self.rule_prob_comp = list(zip(self.rules,self.init_probs)) # A list of tuples of rules and their coresponding probability of being correct
-        self.chosen_rule = None
+        self.chosen_rule = random.choice(self.rules) # Choose a random rule at the begining
 
     # Turning rules to strings for printing
     def to_string(self, the_rule):
@@ -164,17 +164,8 @@ class RuleChoice:
     
     # Return the rule choice
     def choose_rule(self):
-        # List of probabilities from tuple
-        prob_list = [x[1] for x in self.rule_prob_comp]
-        # List of rules from tuple
-        rule_list = [x[0] for x in self.rule_prob_comp]
-
-        # Pick between a percentage of rules (highest probability percentage has best chance of being picked)
-        self.chosen_rule = random.choices(rule_list, weights=prob_list, k =1)[0]
-
-        print("I will match with", self.to_string(self.chosen_rule))
-
         time.sleep(1)
+        print("Model: I will match with", self.to_string(self.chosen_rule))
 
         return self.chosen_rule
 
@@ -202,8 +193,14 @@ class RuleChoice:
             # If the chosen rule was correct, change it's probability of being correect to 100, and everything else to 0
             self.rule_prob_comp = [(rule, 1 if rule == self.chosen_rule else 0)for rule, _ in self.rule_prob_comp]
 
-        # Choose a new rule with altered probs based on feedback
-        self.current_rule = self.choose_rule()
+        # List of probabilities from tuple
+        prob_list = [x[1] for x in self.rule_prob_comp]
+        # List of rules from tuple
+        rule_list = [x[0] for x in self.rule_prob_comp]
+
+        # Pick between a percentage of rules (highest probability percentage has best chance of being picked)
+        self.chosen_rule = random.choices(rule_list, weights=prob_list, k =1)[0]
+
         
 
 # Class represents ACS, which is responsible for taking action based on a choice.
@@ -275,13 +272,20 @@ class WCSTModel:
 model = WCSTModel(10)
 
 # Run 50 trials
-for _ in range(50):
+for i in range(50):
+    time.sleep(1)
+    print("-" * 50)
+    print(" " * 15, "Trial -",i+1, "\n")
     model.run_trial()
 
 # Print the total and perservation errors.
-print("Errors:", model.errors)
-print("Correct:", model.correct)
-print("Perseveration errors:", model.perseveration_errors)
+print("-" * 50)
+print("Model errors:", model.errors)
+print("Model correct answers:", model.correct)
+print("Model perseveration errors:", model.perseveration_errors)
+print("-" * 50)
+
+
 
 
 
