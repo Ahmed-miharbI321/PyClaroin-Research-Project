@@ -1,11 +1,12 @@
-from pyClarion import * 
-from pyClarion.knowledge import * 
-import random
 
-import time # to pause between trials
+# Introductory Comment: This is a hard-coded implementation of the high-level functionalities and roles of the CLARION cognitive architecture and its corresponding subsystems. This implementation simulates how a CLARION agent may engage with and respond to stimuli within the WCST (the Wisconsin Card Sorting Test), where it must correctly match with one of the three possible hidden rules in a given trial (shape, number, and color).
 
-# Step 1 : Implement context of agent; shape, color, or number of card; Rule of current trial; Action agent can take; and Feedback from the tester.
+from pyClarion import Atom, Atoms # Import Atom and Atoms, which represent the smallest symbolic units of explicit knowledge in a CLARION agent.
+from pyClarion.knowledge import * # For the PyClarion data stores (Buses, BusFamily, DataFamily, etc.).
+import random, time # Import random for random choices, and time to pause between trials and simulate "thought time", as in time taken for the agent to think.
 
+# This section is PyClarion's declaration of the agent's context and/or its environment, also known as the "Keyspace Definition" section of developing a PyClarion simulation. This section should represent all of the information the agent would need to manipulate or be exposed to in order to correctly simulate a user's chosen scenario. Since we're simulating the WCST, the rules of the test (shape, color, and number), the feedback from the tester (correct and incorrect), and the actions to match with a particular rule (match with color, shape, or number) are all defined here.
+# It's important to note that this is the only step of the PyClarion simulation development pipeline that is followed in this implementation. The PyClarion development pipeline defines a cognitive agent. This implementation is not agentic, it is meant to be a hard-coded representation of the high-level functionalities of the CLARION cognitive architecture. So, this section acts more like a convenient store for all the possible stimuli the agent would exert or be exposed to within the WCST. In contrast to representing these stimuli as Strings, they are represented as the PyClarion defined Atoms, which like Strings can be compared and returned, but cannot be manipulated, and only exist as a "rule" or an "action" even at the most elementary level. This more accuractely represents the form of information in the mind than a String would.
 class Color(Atoms): 
     red: Atom
     grn: Atom
@@ -64,7 +65,7 @@ class WCSTRoot(Root):
     b: WCSTBuses
     d: WCSTData
 
-# Context of the environment is stored in "root" variable
+# Context of the "agent" is stored in "root" variable
 root = WCSTRoot()
 
 # Define short handles for data sorts
