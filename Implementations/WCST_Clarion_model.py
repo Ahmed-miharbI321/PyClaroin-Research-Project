@@ -103,11 +103,11 @@ class WCSTTester:
     # Turning actions to strings for printing
     def to_string(self, the_action):
         if the_action == action.match_color:
-            return "matching color"
+            return "matching with color"
         if the_action == action.match_shape:
-            return "matching shape"
+            return "matching with shape"
         if the_action == action.match_number:
-            return "matching number"
+            return "matching with number"
 
     # Function to give feedback to testee
     def give_feedback(self, given_action):
@@ -152,6 +152,7 @@ class RuleChoice:
         self.init_probs = [1/3,1/3,1/3]
         self.rule_prob_comp = list(zip(self.rules,self.init_probs)) # A list of tuples of rules and their coresponding probability of being correct
         self.chosen_rule = random.choice(self.rules) # Choose a random rule at the begining
+        self.incorrect_counter = 0 # Keeping track of incorrect answers in a row to model frustration (2 or more incorrect answers results in frustration)
 
     # Turning rules to strings for printing
     def to_string(self, the_rule):
@@ -165,12 +166,18 @@ class RuleChoice:
     # Return the rule choice
     def choose_rule(self):
         time.sleep(1)
-        print("Model: I will match with", self.to_string(self.chosen_rule))
+        if any(1 in tup for tup in self.rule_prob_comp):
+            print("Model (Certain): I will match with", self.to_string(self.chosen_rule))
+        elif self.incorrect_counter >=2:
+            print("Model (Frustrated): I WILL MATCH WITH",self.to_string(self.chosen_rule).upper() + "!")
+        elif  all(prob == self.rule_prob_comp[0][1] for _,prob in self.rule_prob_comp) or len({prob for _, prob in self.rule_prob_comp}) == 2:
+            print("Model (Uncertain): Hmmm... I will match with", self.to_string(self.chosen_rule) + "...")
 
         return self.chosen_rule
 
     # Update the rule based on the feedback
     def update_rule(self, given_feedback):
+
         # If the chosen rule is incorrect
         if given_feedback == feedback.incorrect:
         
@@ -189,9 +196,13 @@ class RuleChoice:
                 # Get new probability value of remaining rule choice(s)
                 self.rule_prob_comp = [(rule, prob / total_prob)for rule, prob in self.rule_prob_comp ]
 
+            self.incorrect_counter += 1
+        
         else:
             # If the chosen rule was correct, change it's probability of being correect to 100, and everything else to 0
             self.rule_prob_comp = [(rule, 1 if rule == self.chosen_rule else 0)for rule, _ in self.rule_prob_comp]
+
+            self.incorrect_counter = 0
 
         # List of probabilities from tuple
         prob_list = [x[1] for x in self.rule_prob_comp]
