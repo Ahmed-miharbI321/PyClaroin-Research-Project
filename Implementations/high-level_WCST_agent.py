@@ -279,7 +279,7 @@ class WCSTModel:
 
             # If the feedback is "incorrect" and chosen rule is the same as the previous rule (perseverative error).
             if previous_rule is not None and chosen_rule == previous_rule:
-                self.perseveration_errors += 1 # Increment the number of perseverative errors.
+                self.perseverative_errors += 1 # Increment the number of perseverative errors.
         # If the tester's feedback is "correct".
         elif given_feedback == feedback.correct: 
             self.correct += 1 # increment the number of correct asnwers
