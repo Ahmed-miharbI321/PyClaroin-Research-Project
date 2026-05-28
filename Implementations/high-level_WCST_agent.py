@@ -6,7 +6,7 @@ from pyClarion.knowledge import * # For the PyClarion data stores (Buses, BusFam
 import random, time # Import random for random choices, and time to pause between trials and simulate thinking time (time taken for the agent to think).
 
 # This section is PyClarion's definition of the agent's context (as in its "world") also known as the "Keyspace Definition" section of the definition of a PyClarion simulation. This section represents all of the information the agent interacts with, internally or externally, to fulfill the simulation. Since we're simulating the WCST, the rules of the test (shape, color, and number), the feedback from the tester (correct or incorrect), and the actions to match with a particular rule (match with color, shape, or number) are all defined here.
-# It's important to note that this is the only step of the PyClarion simulation definition "pipeline" that is followed in this implementation. The PyClarion simulation pipline uses the PyClarion library to create an agentic simulation of a described scenario. This specific implementation is not meant to be agentic, it is a hard-coded implementation of the high-level functions of the CLARION cognitive architecture in the particular scenario of the WCST. So, this version of the keyspace definition acts more like a convenient store for all the possible information that would need to be passed around and manipulated in the scenario of the WCST. The section defines bits of related information as "Atoms" which represent the smallest symbolic units of explicit knowledge in a CLARION agent. This section's function as an information reference/store could have been replicated with simple Strings, however, implementing it this way does not interfere with the project's overall purpose of creating a high-level implementation of a CLARION agent, while also accuratelly representing how information is stored in a CLARION agent. 
+# It's important to note that this is the only step of the PyClarion simulation definition "pipeline" that is followed in this implementation. The PyClarion simulation pipline uses the PyClarion library to eventually implement an agentic simulation of a described scenario. This implementation is not meant to be agentic, it is a hard-coded implementation of the high-level functions of the CLARION cognitive architecture in the particular scenario of the WCST. So, this section acts more like a convenient store for all the possible information that would need to be passed around and manipulated in the scenario of the WCST. The section defines bits of related information as "Atoms" which represent the smallest symbolic units of explicit knowledge in a CLARION agent. This section's function as an information reference/store could have been replicated with simple Strings, however, implementing it this way does not interfere with the project's overall purpose of creating a high-level implementation of a CLARION agent, while also accuratelly representing how information is stored in a CLARION agent. 
 
 # Color Atoms for the possible color of shapes on the cards.
 class Color(Atoms): 
@@ -88,7 +88,7 @@ action = root.d.action
 # Class represents WCST tester. The tester gives feedback (correct/incorrect) based on the testee's guess of the hidden rule and changes the hidden rule after a certain amount of trials (the amount of trials before changing the hidden rule is a random number between 5 and another predefined number).
 class WCSTTester:
 
-    # Initialize tester; the hidden rules available to choose from, how many trials before switching the rule, tracking the number of trials, the previous hidden rule, and the original number of trials before switching the hidden rule (The number of trials before switching the hidden rule will change throughout the test).
+    # Initialize tester; the hidden rules available to choose from, how many trials before switching the rule, track the number of trials, the previous hidden rule, and the original number of trials before switching the hidden rule (The number of trials before switching the hidden rule will change throughout the test).
     def __init__(self, rules, switch_every):
 
         # List of rules atoms.
@@ -97,14 +97,17 @@ class WCSTTester:
         # Randomly choose hidden rule.
         self.hidden_rule = random.choice(self.rules)
 
+        # Keep count of the current trial.
+        self.trial = 0
+
         # To keep track of the previous hidden rule.
         self.previous_rule = None
 
-        # Initialize number of correct trials before switching hidden rule.
-        self.switch_every = switch_every 
+        # Initialize number of trials before switching hidden rule.
+        self.switch_every = switch_every
 
-        # The amount of correct guesses in a row of the hidden rule by the testee. To track when the rule should switch
-        self.correct_guesses = 0
+        # Keep track of original number of trials before switching hidden rule.
+        self.original_switch_every = switch_every
     
     # Function to turn actions recieved from testee to strings for printing.
     def to_string(self, the_action):
@@ -128,20 +131,21 @@ class WCSTTester:
         elif self.hidden_rule == rule.number:
             correct = given_action == action.match_number
         
+        # Increment to the current trial.
+        self.trial += 1
 
         # If the current trial is the "switch_every"th trial, pick a random new hidden rule, making sure not to pick the one that is currently being used, and change the number of trials before switching the hidden rule to a number between 5, and the previously defined number of trials before switching the hidden rule.
-        if self.switch_every == self.correct_guesses:
+        if self.trial % self.switch_every == 0:
             self.previous_rule = self.hidden_rule
             options = [r for r in self.rules if r != self.hidden_rule]
             self.hidden_rule = random.choice(options)
-            self.correct_guesses = 0
+            self.switch_every = random.randint(5,self.original_switch_every)
         
         time.sleep(1) # Pause for a moment, for a more sequential representation of the testing process.
 
         # Give feedback to the testee, based on the result of their guess (correct or incorrect).
         if correct: # If the result of "correct" is true, then print a corresponding message, and return the "correct" Atom in the "Feedback" set of Atoms.
             print("Tester:", self.to_string(given_action), "was correct") 
-            self.correct_guesses += 1
             return feedback.correct
         else:
             print("Tester:", self.to_string(given_action), "was incorrect")
@@ -149,7 +153,7 @@ class WCSTTester:
 
 
 # This is the first class which represents the Testee. Since the implementation is meant to be a high-level representation of a CLARION agent, each class is a hard-coded representation of some of the subsystems that make up a CLARION agent but only the ones relevant to this specific task. This class represents the NACS (Non-Action-Centered Subsystem) and the MS (Motivational Subsystem). The NACS is responsible for an agent's general knowledge and reasoning and the motivational subsystem creates incentives for cognition (in this case, it helps to decide between choices). Both of these aspects are roughly represented in the "update_rule" function. The testee guesses the hidden rule based on a list of probabilities that it manipulates throughout the trials.
-# This class is also where the abstract concepts are modelled. The concepts of frustration, certainty and uncertainty are modelled here through printed messages which are triggered after certain conditions are met during the trials. Frustration is triggered after the testee chooses the incorrect rule two or more times in a row, and is represented through a printed message where all the words are fully capitalised. Uncertainty is triggered when the testee has to pick between rules of equal probability, and is represented through a "hmmm" prefix before a printed message. Certainty is represented through a simple printed message where the testee declares their chosen rule.
+# This class is also where the abstract concepts are modelled. The concepts of frustration and uncertainty are modelled here through printed messages which are triggered after certain conditions are met during the trials. Frustration is triggered after the testee chooses the incorrect rule two or more times in a row, and is represented through a printed message where all the words are fully capitalised. Uncertainty is triggered when the testee has to pick between rules of equal probability, and is represented through a "hmmm" prefix before a printed message. If neither of the conditions are triggered, a simple message will be printed where the testee will declare their chosen rule.
 class RuleChoice:
 
     # Initialize RuleChoice; the hidden rules to guess, the probability that each one of the rules is the correct one, a composition between the rules and their corresponding probability of being correct, the picked rule (chosen randomly in the beginning), and how many times in a row the rule chosen was incorrect.
@@ -158,7 +162,7 @@ class RuleChoice:
         self.init_probs = [1/3,1/3,1/3] # Probability of each rule being correct, equal at the beginning.
         self.rule_prob_comp = list(zip(self.rules,self.init_probs)) # A list of tuples of rules and their coresponding probability of being correct.
         self.chosen_rule = random.choice(self.rules) # Tracking the chosen rule, a random one is picked at the beginniing.
-        self.incorrect_counter = 0 # Keeping track of incorrect answers in a row to model frustration (2 or more incorrect answers in a row trigger the frustration response).
+        self.incorrect_counter = 0 # Keeping track of incorrect answers in a row to model frustration (2 or more incorrect answers in a row result in frustration).
 
     # Turning rules to strings for printing.
     def to_string(self, the_rule):
@@ -171,15 +175,16 @@ class RuleChoice:
     
     # Function to return the chosen rule and print a corresponding message.
     def choose_rule(self):
-        time.sleep(1) # Pause for a moment to simulate "thought time".
-         # Model frustration.
+        time.sleep(1) # Pause for a moment to simulate "though time".
+
+        # Model frustration.
         if self.incorrect_counter >=2: # If the testee has two or more incorrect answers in a row
             print("Model (Frustrated): I WILL MATCH WITH",self.to_string(self.chosen_rule).upper() + "!") # Print a "frustrated" message declaring the chosen rule.
-    
+        
         # Model certainty.
         elif any(1 in tup for tup in self.rule_prob_comp): # If any one of the probabilities in the rule, probability tuple has a 100% probability of being correct
             print("Model (Certain): I will match with", self.to_string(self.chosen_rule)) # Print a message declaring that rule will be chosen (the logic in "update_rule" ensures that this rule will be chosen so this lines up).
-
+        
         # Model uncertainty.
         elif  all(prob == self.rule_prob_comp[0][1] for _,prob in self.rule_prob_comp) or len({prob for _, prob in self.rule_prob_comp}) == 2: # if two or more rules have the same probability in the rule probability tuple list.
             print("Model (Uncertain): Hmmm... I will match with", self.to_string(self.chosen_rule) + "...") # Print an "uncertain" message declaring the chosen rule.
@@ -194,7 +199,7 @@ class RuleChoice:
         
             # If the feedback was incorrect and all the rules have already been chosen (hidden rule probably switched as the testee was cycling through the rules).
             if sum(prob == 1 for _,prob in self.rule_prob_comp) == 1:
-                self.rule_prob_comp = [(rule, 1/3) for rule, _ in self.rule_prob_comp] # Reset the proabilities for the rules, make it so that they are all equal since the hidden rule most likely switched.
+                self.rule_prob_comp = [(rule, 0 if rule == self.chosen_rule else 1/3) for rule, _ in self.rule_prob_comp ] # Reset the proabilities for the rules, make it so that they are all equal since the hidden rule most likely switched.
 
             # If the feedback was incorrect but there are two or three more choices to make
             else:
@@ -210,7 +215,7 @@ class RuleChoice:
         else:
             self.rule_prob_comp = [(rule, 1 if rule == self.chosen_rule else 0)for rule, _ in self.rule_prob_comp] # Change it's probability of being correect to 100, and everything else to 0. The testee assumes that the hidden rule will not change right after they have picked the correct answer.
 
-            self.incorrect_counter = 0 # Reset the incorrect rules in a row to 0.
+            self.incorrect_counter = 0 # Reset the incorrect rules guessed in a row to 0.
 
         # List of probabilities from tuple
         prob_list = [x[1] for x in self.rule_prob_comp]
@@ -240,7 +245,7 @@ class MakeChoice:
 # This class models the whole WCST simulation.
 class WCSTModel:
     
-    # Create the high-level CLARION subsystems (ACS, NACS, and MS), which collectively represent a high-level implementation of a CLARION agent (the testee), create the tester, keep track of the total errors of the testee, its perseverative errors (when the testee picks an incorrect rule that previously correct), and the total number of correctly matched rules.
+    # Create the high-level CLARION subsystems (ACS, NACS, and MS), which collectively represent a high-level implementation of a CLARION agent (the testee), create the tester, keep track of the total errors of the testee, its perseverative errors (when the testee picks an incorrect rule that was previously correct), and the total number of correctly matched rules.
     def __init__(self, switch_every):
         
         # List of rule Atoms.
@@ -266,7 +271,7 @@ class WCSTModel:
 
         previous_rule = self.tester.previous_rule # Keeping track of the previous hidden rule to measure perseverative errors.
         
-        given_feedback = self.tester.give_feedback(action) # The tester gives feedback to the testee's chosen rule based on the action they made.
+        given_feedback = self.tester.give_feedback(action) # The testeer gives feedback to the testee's chosen rule based on the action they made.
 
         # If the tester's feedback is "incorrect".
         if given_feedback == feedback.incorrect:
@@ -284,7 +289,7 @@ class WCSTModel:
 
 # Running the test
 
-# WCST model object. The model is initialized with the fixed number of trials before the rule hidden rule changes.
+# WCST model object. Initially, the testee switches the hidden rule after 10 trials.
 model = WCSTModel(10)
 
 # Run 50 trials.
