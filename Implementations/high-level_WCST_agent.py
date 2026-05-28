@@ -129,9 +129,16 @@ class WCSTTester:
 
         elif self.hidden_rule == rule.number:
             correct = given_action == action.match_number
+        
+        # Increment to the current trial.
+        self.trial += 1
 
         # If the current trial is the "switch_every"th trial, pick a random new hidden rule, making sure not to pick the one that is currently being used, and change the number of trials before switching the hidden rule to a number between 5, and the previously defined number of trials before switching the hidden rule.
-       
+        if self.trial % self.switch_every == 0:
+            self.previous_rule = self.hidden_rule
+            options = [r for r in self.rules if r != self.hidden_rule]
+            self.hidden_rule = random.choice(options)
+        
         time.sleep(1) # Pause for a moment, for a more sequential representation of the testing process.
 
         # Give feedback to the testee, based on the result of their guess (correct or incorrect).
@@ -160,10 +167,6 @@ class RuleChoice:
         self.chosen_rule = random.choice(self.rules) # Tracking the chosen rule, a random one is picked at the beginniing.
         self.incorrect_counter = 0 # Keeping track of incorrect answers in a row to model frustration (2 or more incorrect answers in a row result in frustration).
 
-        # Certainty decay vars
-        self.correct_streak = 0
-        self.switch_every = None
-
     # Turning rules to strings for printing.
     def to_string(self, the_rule):
         if the_rule == rule.color:
@@ -190,56 +193,32 @@ class RuleChoice:
             print("Model (Uncertain): Hmmm... I will match with", self.to_string(self.chosen_rule) + "...") # Print an "uncertain" message declaring the chosen rule.
 
         return self.chosen_rule # Return the chosen rule so a corresponding action is picked and passed to the tester.
-    
-    def decay_rule_certainty(self):
-        if self.switch_every is None:
-            certainty = 1
-        else:
-            decay_amount = self.correct_streak / self.switch_every
-
-            if decay_amount > 1:
-                decay_amount = 1
-            
-            certainty = 1 - decay_amount
-
-        remaining_prob = 1 - certainty
-        other_probs = remaining_prob / (len(self.rules) -1)
-
-        self.rule_prob_comp = [(r, certainty if r == self.chosen_rule else other_probs) for r, _ in self.rule_prob_comp] 
-    
 
     # Function to update the chosen rule based on the feedback recieved from the tester.
     def update_rule(self, given_feedback):
 
         # If the chosen rule is incorrect.
         if given_feedback == feedback.incorrect:
-
-            if self.correct_streak > 0 and self.switch_every is None:
-                self.switch_every = self.correct_streak
-            
-            self.correct_streak = 0
         
             # If the feedback was incorrect and all the rules have already been chosen (hidden rule probably switched as the testee was cycling through the rules).
             if sum(prob == 1 for _,prob in self.rule_prob_comp) == 1:
-                self.rule_prob_comp = [(rule, 0 if rule == self.chosen_rule else 1/(len(self.rules)-1)) for rule, _ in self.rule_prob_comp ] # Reset the proabilities for the rules, make it so that they are all equal since the hidden rule most likely switched.
+                self.rule_prob_comp = [(rule, 0 if rule == self.chosen_rule else 1/2) for rule, _ in self.rule_prob_comp ] # Reset the proabilities for the rules, make it so that they are all equal since the hidden rule most likely switched.
 
             # If the feedback was incorrect but there are two or three more choices to make
             else:
-                self.rule_prob_comp = [(rule, 0 if rule == self.chosen_rule else prob) for rule, prob in self.rule_prob_comp ] # Turn the prob of the chosen rule to 0 since it was incorrect.
+                self.rule_prob_comp = [(rule, 0) if rule == self.chosen_rule else (rule, prob) for rule, prob in self.rule_prob_comp ] # Turn the prob of the chosen rule to 0 since it was incorrect.
 
                 total_prob = sum(prob for _,prob in self.rule_prob_comp) # Get the new total of the probabilities.
 
-                self.rule_prob_comp = [(rule, prob / total_prob) for rule, prob in self.rule_prob_comp ] # Get the new probability values for each of the remaining values.
+                self.rule_prob_comp = [(rule, prob / total_prob)for rule, prob in self.rule_prob_comp ] # Get the new probability values for each of the remaining values.
 
             self.incorrect_counter += 1
 
         # If the chosen rule was correct.
         else:
-            self.correct_streak += 1
+            self.rule_prob_comp = [(rule, 1 if rule == self.chosen_rule else 0)for rule, _ in self.rule_prob_comp] # Change it's probability of being correect to 100, and everything else to 0. The testee assumes that the hidden rule will not change right after they have picked the correct answer.
 
             self.incorrect_counter = 0 # Reset the incorrect rules guessed in a row to 0.
-
-            self.decay_rule_certainty()
 
         # List of probabilities from tuple
         prob_list = [x[1] for x in self.rule_prob_comp]
