@@ -176,19 +176,16 @@ class RuleChoice:
             return "number"
 
     def reset_probabilities(self):
-        """Return to beginning-like uncertainty: all rules equally likely."""
         prob = 1 / len(self.rules)
         self.rule_prob_comp = [(r, prob) for r in self.rules]
 
     def set_certain(self):
-        """Become certain that the currently chosen rule is correct."""
         self.rule_prob_comp = [
             (r, 1 if r == self.chosen_rule else 0)
             for r in self.rules
         ]
 
     def choose_next_rule(self):
-        """Sample the next rule from the current probability distribution."""
         rule_list = [r for r, _ in self.rule_prob_comp]
         prob_list = [p for _, p in self.rule_prob_comp]
         self.chosen_rule = random.choices(rule_list, weights=prob_list, k=1)[0]
@@ -274,7 +271,7 @@ class RuleChoice:
                 self.set_certain()
 
         self.choose_next_rule()
-        
+
 # This class represents the ACS (Action-Centered Subsystem), which is responsible for making an action based on the choice retrieved from the NACS, which is influenced by the MS. The testee takes an action (matching with color, shape, or number) based on the choice it made.
 class MakeChoice:
 
