@@ -1,12 +1,11 @@
+# Introductory Comment: This file uses Python to create a high-level representation of how an agent using the CLARION cognitive architecture as its foundation may engage with the WCST (Wisconsin Card Sorting Test) as a participant (testee). This implementation is NOT agentic, for the agentic implmenetation see the .
 
-# Introductory Comment: This is a hard-coded implementation of the high-level functions and roles of some of the different subsystems that make up the CLARION cognitive architecture. This implementation is a high-level representation of how a CLARION agent may engage with the tasks within the WCST and what each of its subsystems may be responsible for in that context. The WCST (Wisconsin Card Sorting Test) is a test where the testee must match a rule (color, shape, or number) with the current, unknown hidden rule set by the tester.
+from pyClarion import Atom, Atoms # Import Atom and Atoms from PyClarion which would represent the smallest symbolic units of explicit knowledge in a true CLARION agent created using PyClarion. In this case, we are using Atoms as convenient stores for the information relating to the WCST. 
+from pyClarion.knowledge import * # For the PyClarion data stores (Buses, BusFamily, DataFamily, etc.) to access our Atoms.
+import random, time # Import random for random choices, and time to pause between trials and to simulate a period of time in which the agent is thinking.
 
-from pyClarion import Atom, Atoms # Import Atom and Atoms, which represent the smallest symbolic units of explicit knowledge in a CLARION agent.
-from pyClarion.knowledge import * # For the PyClarion data stores (Buses, BusFamily, DataFamily, etc.).
-import random, time # Import random for random choices, and time to pause between trials and simulate thinking time (time taken for the agent to think).
-
-# This section is PyClarion's definition of the agent's context (as in its "world") also known as the "Keyspace Definition" section of the definition of a PyClarion simulation. This section represents all of the information the agent interacts with, internally or externally, to fulfill the simulation. Since we're simulating the WCST, the rules of the test (shape, color, and number), the feedback from the tester (correct or incorrect), and the actions to match with a particular rule (match with color, shape, or number) are all defined here.
-# It's important to note that this is the only step of the PyClarion simulation definition "pipeline" that is followed in this implementation. The PyClarion simulation pipline uses the PyClarion library to eventually implement an agentic simulation of a described scenario. This implementation is not meant to be agentic, it is a hard-coded implementation of the high-level functions of the CLARION cognitive architecture in the particular scenario of the WCST. So, this section acts more like a convenient store for all the possible information that would need to be passed around and manipulated in the scenario of the WCST. The section defines bits of related information as "Atoms" which represent the smallest symbolic units of explicit knowledge in a CLARION agent. This section's function as an information reference/store could have been replicated with simple Strings, however, implementing it this way does not interfere with the project's overall purpose of creating a high-level implementation of a CLARION agent, while also accuratelly representing how information is stored in a CLARION agent. 
+# This section would be PyClarion's definition of the true agent's context (as in its "world") also known as the "Keyspace Definition" section of the definition of a PyClarion simulation. This section represents all of the information the agent interacts with, internally or externally, to fulfill the simulation. Since we're simulating the WCST, the rules of the test (shape, color, and number), the feedback from the tester (correct or incorrect), and the actions to match with a particular rule (match with color, shape, or number) are all defined here.
+# It's important to note that this is the only step of the PyClarion simulation definition "pipeline" that is followed in this implementation. The PyClarion simulation pipline uses the PyClarion library to implement an agentic simulation of a described scenario. This implementation is not meant to be agentic, it is a high-level representation of a CLARION agent in the context of a participant in the WCST. So, this section acts more like a convenient store for all the possible information that would need to be passed around and manipulated in the scenario of the WCST by the particpant and the tester. The section defines bits of related information as "Atoms" which represent the smallest symbolic units of explicit knowledge in a CLARION agent. This section's function as an information reference/store could have been replicated with simple Strings, however, implementing it this way accuratelly rerpresents how information is stored in a CLARION agent (symbolically), while also being the only section of the simulation definition pipeline which does not interfere with the project's overall purpose of creating a high-level representation of a CLARION agent.
 
 # Color Atoms for the possible color of shapes on the cards.
 class Color(Atoms): 
@@ -148,14 +147,14 @@ class WCSTTester:
             return feedback.incorrect
 
 
-# This is the first class which represents the Testee. Since the implementation is meant to be a high-level representation of a CLARION agent, each class is a hard-coded representation of some of the subsystems that make up a CLARION agent but only the ones relevant to this specific task. This class represents the NACS (Non-Action-Centered Subsystem) and the MS (Motivational Subsystem). The NACS is responsible for an agent's general knowledge and reasoning and the motivational subsystem creates incentives for cognition (in this case, it helps to decide between choices). Both of these aspects are roughly represented in the "update_rule" function. The testee guesses the hidden rule based on a list of probabilities that it manipulates throughout the trials.
-# This class is also where the abstract concepts are modelled. The concepts of frustration and uncertainty are modelled here through printed messages which are triggered after certain conditions are met during the trials. Frustration is triggered after the testee chooses the incorrect rule two or more times in a row, and is represented through a printed message where all the words are fully capitalised. Uncertainty is triggered when the testee has to pick between rules of equal probability, and is represented through a "hmmm" prefix before a printed message. If neither of the conditions are triggered, a simple message will be printed where the testee will declare their chosen rule.
+# This is the first class which represents the WCST participant (our hypothetical agent in this implementation). This class represents the NACS (Non-Action-Centered Subsystem) and MS (Motivational Subsystem) in a CLARION agent. The NACS is responsible for an agent's general knowledge and reasoning, and the motivational subsystem creates incentives for cognition (in this case, it helps to decide between choices). Both of these aspects are roughly represented in the "update_rule" function. The participant guesses the hidden rule based on a list of probabilities that it manipulates throughout the trials.
+# The concepts of certainty, uncertainty, frustration, and learning are modelled throughout the tests. Each of these concepts is represented through a print statement which is a variation on a declaration of a rule guess. Initially, the model learns the amount of correct guesses required before the hidden rule switches, then every
 class RuleChoice:
 
     # Initialize RuleChoice; the hidden rules to guess, the probability that each one of the rules is the correct one, a composition between the rules and their corresponding probability of being correct, the picked rule (chosen randomly in the beginning), and how many times in a row the rule chosen was incorrect.
     def __init__(self, rules):
         self.rules = rules
-        self.init_probs = [1 / len(self.rules) for _ in self.rules]
+        self.init_probs = [1/3, 1/3, 1/3]
         self.rule_prob_comp = list(zip(self.rules, self.init_probs))
         self.chosen_rule = random.choice(self.rules)
         self.incorrect_counter = 0
@@ -200,7 +199,7 @@ class RuleChoice:
 
         # Model learned switch expectation.
         elif self.learned_switch_every is not None and self.correct_streak == 0:
-            print("Model (Set-shifting): The rule probably switched. Hmmm... I will match with", self.to_string(self.chosen_rule) + "...")
+            print("Model (Shift Guess): The rule probably switched. Hmmm... I will match with", self.to_string(self.chosen_rule) + "...")
 
         # Model certainty.
         elif any(prob == 1 for _, prob in self.rule_prob_comp):
@@ -223,7 +222,7 @@ class RuleChoice:
             # switches after that many correct guesses.
             if self.correct_streak > 0 and self.learned_switch_every is None:
                 self.learned_switch_every = self.correct_streak
-                print("Model (Learning): I think the rule switches after", self.learned_switch_every, "correct guesses.")
+                print("Model (Learned): I think the rule switches after", self.learned_switch_every, "correct guesses.")
 
             self.correct_streak = 0
             self.incorrect_counter += 1
