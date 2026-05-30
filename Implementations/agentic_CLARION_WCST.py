@@ -345,6 +345,40 @@ class FullyAgenticWCSTAgent(Agent):
         self._send_affect()
         self._run_events()
 
+    # ----- High-level RuleChoice-style helpers -----------------------------
+
+    def _rule_name(self, rule_atom: Atom | None) -> str:
+        if rule_atom is None:
+            return "unknown"
+        return atom_name_in(self.root.d.rule, rule_atom)
+
+    def _reset_posterior(self) -> None:
+        """Reset rule probabilities to the beginning-like uniform state."""
+        self.posterior = {r: 1.0 / len(self.rules) for r in self.rules}
+
+    def _set_certain(self, rule_atom: Atom) -> None:
+        """Set the chosen rule to probability 1, all others to 0."""
+        self.posterior = {r: (1.0 if r == rule_atom else 0.0) for r in self.rules}
+
+    def _posterior_is_certain(self) -> bool:
+        return any(p == 1.0 for p in self.posterior.values())
+
+    def inner_speech(self) -> None:
+        """Print the same high-level choice declarations as RuleChoice.choose_rule()."""
+        chosen = self._rule_name(self.last_rule_strategy)
+
+        if self.incorrect_streak >= self.frustration_threshold:
+            print("Model (Frustrated): I WILL MATCH WITH", chosen.upper() + "!")
+
+        elif self.learned_shift_criterion is not None and self.correct_streak == 0:
+            print("Model (Learned): The rule probably switched. Hmmm... I will match with", chosen + "...")
+
+        elif self._posterior_is_certain():
+            print("Model (Certain): I will match with", chosen)
+
+        else:
+            print("Model (Uncertain): Hmmm... I will match with", chosen + "...")
+
     def perceive(self, stimulus: Card, env: WCSTEnvironment) -> None:
         """Receive a new card and prepare target-action drives."""
         self.last_stimulus = stimulus
@@ -374,6 +408,7 @@ class FullyAgenticWCSTAgent(Agent):
         self.last_target = target
         self.last_state = self._state()
         self.last_rule_strategy = self._infer_rule_strategy_from_target(target)
+        self.inner_speech()
         return target
 
     def observe(self, feedback_atom: Atom) -> None:
@@ -381,45 +416,83 @@ class FullyAgenticWCSTAgent(Agent):
         reward = 1.0 if feedback_atom == self.root.d.feedback.correct else -1.0
         self.system.schedule(self.feedback_in.send({feedback_atom: 1.0}))
 
-        self._update_explicit_posterior(feedback_atom)
+        self._update_high_level_rule_state(feedback_atom)
         self._update_implicit_q(reward)
-        self._update_meta_monitor(feedback_atom)
         self._send_affect()
-        self.last_feedback_name = atom_tail(feedback_atom)
+        self.last_feedback_name = atom_name_in(self.root.d.feedback, feedback_atom)
         self._run_events()
 
     # ----- Learning ---------------------------------------------------------
 
-    def _update_explicit_posterior(self, feedback_atom: Atom) -> None:
+    def _update_high_level_rule_state(self, feedback_atom: Atom) -> None:
+        """
+        Update rule probabilities to mirror the current
+        high_level_CLARION_WCST.RuleChoice implementation.
+        """
+
         if self.last_rule_strategy is None:
             return
 
         correct = feedback_atom == self.root.d.feedback.correct
 
-        if correct:
-            # The chosen rule explains the observed success.
-            self.posterior = {
-                r: 1.0 if r == self.last_rule_strategy else 0.0 for r in self.rules
-            }
+        # --------------------------------------------------
+        # Incorrect feedback
+        # --------------------------------------------------
+        if not correct:
+
+            if self.correct_streak > 0 and self.learned_shift_criterion is None:
+                self.learned_shift_criterion = float(self.correct_streak)
+
+                print(
+                    "Model (Learned): I think the rule switches after",
+                    int(self.learned_shift_criterion),
+                    "correct guesses."
+                )
+
+            self.correct_streak = 0
+            self.incorrect_streak += 1
+
+            # Match updated high-level model:
+            # always eliminate the failed rule.
+            self.posterior[self.last_rule_strategy] = 0.0
+
+            total = sum(self.posterior.values())
+
+            if total <= 0.0:
+                self._reset_posterior()
+
+            else:
+                self.posterior = {
+                    r: v / total
+                    for r, v in self.posterior.items()
+                }
+
             return
 
-        was_certain = self.posterior.get(self.last_rule_strategy, 0.0) >= 0.98
-        if was_certain:
-            # If certainty is violated, interpret this as possible set shift.
-            remaining = [r for r in self.rules if r != self.last_rule_strategy]
-            self.posterior = {
-                r: 0.0 if r == self.last_rule_strategy else 1.0 / len(remaining)
-                for r in self.rules
-            }
+        # --------------------------------------------------
+        # Correct feedback
+        # --------------------------------------------------
+        self.correct_streak += 1
+        self.incorrect_streak = 0
+
+        if (
+            self.learned_shift_criterion is not None
+            and self.correct_streak >= self.learned_shift_criterion
+        ):
+
+            print(
+                "Model (Prediction): I reached",
+                int(self.learned_shift_criterion),
+                "correct guesses, so the rule should switch now."
+            )
+
+            self.correct_streak = 0
+            self._reset_posterior()
+
             return
 
-        # Otherwise eliminate only the failed hypothesis and renormalize.
-        self.posterior[self.last_rule_strategy] = 0.0
-        total = sum(self.posterior.values())
-        if total <= 0.0:
-            self.posterior = {r: 1.0 / len(self.rules) for r in self.rules}
-        else:
-            self.posterior = {r: v / total for r, v in self.posterior.items()}
+        # Otherwise remain completely certain.
+        self._set_certain(self.last_rule_strategy)
 
     def _update_implicit_q(self, reward: float) -> None:
         if self.last_state is None or self.last_rule_strategy is None:
@@ -430,26 +503,6 @@ class FullyAgenticWCSTAgent(Agent):
         next_state = self._state()
         bootstrap = max(self.q.get((next_state, r), 0.0) for r in self.rules)
         self.q[key] = old + self.alpha * (reward + self.gamma * bootstrap - old)
-
-    def _update_meta_monitor(self, feedback_atom: Atom) -> None:
-        correct = feedback_atom == self.root.d.feedback.correct
-        if correct:
-            self.correct_streak += 1
-            self.incorrect_streak = 0
-            return
-
-        # An error after a run of successes is evidence about the task's shift
-        # criterion. This is learned online instead of being given to the agent.
-        if self.correct_streak >= 2:
-            if self.learned_shift_criterion is None:
-                self.learned_shift_criterion = float(self.correct_streak)
-            else:
-                self.learned_shift_criterion = (
-                    0.80 * self.learned_shift_criterion + 0.20 * self.correct_streak
-                )
-
-        self.correct_streak = 0
-        self.incorrect_streak += 1
 
     # ----- Drive construction ---------------------------------------------
 
