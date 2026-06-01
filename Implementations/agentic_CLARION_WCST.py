@@ -10,7 +10,7 @@ pyClarion repository:
 4. Event processing in an external environment loop.
 
 Unlike the earlier high-level implementation, the agent does not directly choose
-"the hidden rule" from a hard-coded rule-choice class. It receives a stimulus
+the sorting rule from a hard-coded rule-choice class. It receives a stimulus
 card, selects one of four target cards, receives correct/incorrect feedback, and
 learns how to behave across trials.
 
@@ -727,9 +727,9 @@ def run_wcst(
 
     metrics = {
         "trials": n_trials,
-        "correct": correct_count,
-        "errors": error_count,
-        "perseverative_errors": perseverative_errors,
+        "correct": correct_count / n_trials * 100 + "%",
+        "errors": error_count / n_trials * 100 + "%",
+        "perseverative_errors": perseverative_errors / n_trials * 100 + "%",
         "learned_shift_criterion": (
             None if agent.learned_shift_criterion is None else round(agent.learned_shift_criterion, 2)
         ),

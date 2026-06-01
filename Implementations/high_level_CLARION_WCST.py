@@ -1,6 +1,6 @@
 # Introductory comment: This is a non-agentic, Python implementation of the WCST (Wisconsin Card Sorting Test). The classes in this implmenetation represent a tester (WCSTTester), participant (ParticipantRuleChoice and ParticipantMakeChoice), and their interactions within a single trial (WCSTTrial). The WCST is a neuropsychological test which allows for the measure of cognitive flexibility, which essentially is the capacity of a cognitive agent to rapidly change their behaviour in response to external feedback in order to achieve a target goal. The WCST usually involves one or more target cards and a set of deck cards which are used by the participant. Each card contains a specific set of shapes which vary with respect to three categories; color of shape, type of shape, and number of shapes. In a single trial, the participant uses their deck cards to match the target card's correct category. The sorting rule (correct category) is not known by the participant. After each trial (matching attempt), the tester provides feedback (correct or incorrect) to the participant based on the current sorting rule. After a fixed number of continuous successful trials (trials where the pariticpant correctly matched the target card(s)), the tester changes the sorting rule in the trial following the final succesful trial without telling the participant, who then has to identify the new rule. Throughout the test, the participant must infer the correct sorting rule based on the feedback given by the tester.
 # Distinctions from original WCST: The WCST reflected in this implementation differes from the version highlighted in the introductory comment. The notion of a physical card with identifiable features is not reflected here. In this implementation, an assumption is made where the pariticpant is aware of the three possible categories (shape, color, or number) it must match with the tester's sorting rule in a given trial. The test simply involves a declaration by the participant of the current sorting rule to which the tester then responds with feedback (correct or incorrect). The tester still changes the sorting rule after a fixed number of successive correct matches, a number which the participant is not aware of and must identify.
-# Implementation goal: The goal of this implementation is to reflect a high-level representation of how a CLARION agent may interact with the WCST as a participant. The participant is defined in two classes; the ParticipantRuleChoice class and the MakeCoice class. The ParticipantRuleChoice class represents CLARION cognitive architecture's NACS (Non-Action Centered Subsystem), which is responsible for maintaining an agent's general knowledge and reasoning capabilties. The ParticipantMakeChoice class represents the CLARION cognitive architecture's ACS (Action-Centered Subsystem), which is responsible for an agent's physical actions. In the context of the altered WCST, the general knowledge of the model would be rules available in the test (color, shape, or number), their probabilities of matching the correct sorting rule in a given trial, the internally chosen rule for the trial, the number of correct matches in a row, and the number of trials before the sorting rule switches. It's reasoning capabilities are reflected in the choose_rule, update_rule and choose_next_rule functions. The actions available to the model reflect the rule it has chosen internally. For example, if the model chooses "color" (which in reality would be a declaration of the card chosen to the tester), the choice is passed through the ACS onto the tester. The CLARION cognitive architecture is composed of a total of four subclasses, including the ACS and NACS, which each interact with each other to emerge complex, human-like behaviour. For the purposes of the altered WCST, the ACS and NACS would be sufficient.
+# Implementation goal: The goal of this implementation is to reflect a high-level representation of how a CLARION agent may interact with the WCST as a participant. The participant is defined in two classes; the ParticipantRuleChoice class and the MakeCoice class. The ParticipantRuleChoice class represents CLARION cognitive architecture's NACS (Non-Action Centered Subsystem), which is responsible for maintaining an agent's general knowledge and reasoning capabilties. The ParticipantMakeChoice class represents the CLARION cognitive architecture's ACS (Action-Centered Subsystem), which is responsible for an agent's physical actions. In the context of the altered WCST, the general knowledge of the model would be rules available in the test (color, shape, or number), their probabilities of matching the correct sorting rule in a given trial, the internally chosen rule for the trial, the number of correct matches in a row, and the number of trials before the sorting rule switches. It's reasoning capabilities are reflected in the choose_rule, update_rule and choose_next_rule functions. The actions available to the model reflect the rule it has chosen internally. For example, if the model chooses "color" (which in reality would be a declaration of the card chosen to the tester), the choice is passed through the ACS onto the tester. The CLARION cognitive architecture is composed of a total of four subclasses, including the ACS and NACS, which each interact with each other to emerge complex, human-like behaviour. For the purposes of this high-level representation, the ACS and NACS, which usually serve as the main components of a CLARION agent anyways, will suffice.
 
 # Relevant imports
 
@@ -131,7 +131,7 @@ class ParticipantRuleChoice:
 
     # Function to return the chosen rule (passed to the ACS) and print choice declaration. High-level emotion and speech component.
     def choose_rule(self):
-        time.sleep(1)
+        time.sleep(1) # Sleep to pause between participant declaration and tester reply.
 
         # Model frustration. Frustrated declaration of rule choice.
         if self.incorrect_counter >= 2: # Print this message if the participant guesses the sorting rule incorrectly 2 or more times.
@@ -178,7 +178,7 @@ class ParticipantRuleChoice:
             self.incorrect_counter = 0 # Reset the number of incorrcet answers to 0.
 
             if self.learned_switch_every is not None and self.correct_streak >= self.learned_switch_every: # If we already know the number of successive correct guesses before the sorting rule switches and we reached a corresponding number of correct streaks.
-                print("Model (Prediction): I reached", self.learned_switch_every, "correct guesses, so the rule should switch now.") # Print declaration of new choice, since max number of correct guesses was reached and the rule has swaped.
+                print("Model (Learned): I reached", self.learned_switch_every, "correct guesses, so the rule should switch now.") # Print declaration of new choice, since max number of correct guesses was reached and the rule has swaped.
                 self.correct_streak = 0 # Reset the streak of correct guesses.
                 self.rule_prob_comp = [(r, 1/3) for r,_ in self.rule_prob_comp] # Reset the probabilities of all the rules again to pick a random rule.
 
@@ -240,24 +240,23 @@ class WCSTTrial:
 
 # Running the test
 
-model = WCSTTrial(10) # The model of a WCST trial. The number of correct guesses before a sorting rule switch is set to 10.
-for i in range(50): # Run 50 trials.
+total_trials = 128 # The total number of trials, set to 128.
+max_correct_guesses = 10 # The maximum number of correct guesses by the paritcipant before the sorting rule switches.
+
+model = WCSTTrial(max_correct_guesses) # The model of a WCST trial. The number of correct guesses before a sorting rule switch is set to 10.
+for i in range(total_trials): # Run total_trails trials.
     time.sleep(1) # Pause between each trial.
     print("-" * 50) # Seperators between each trial
     print(" " * 15, "Trial -",i+1, "\n") # Print current trial number.
     model.run_trial() # Run the model.
 
-# Print the total number of errors, the number of perseverative errors, and the number of correctly matched rules.
+
+# Print the metric to measure the performance of the model.
 print("-" * 50) # Seperators.
-print("Model errors:", model.errors)
-print("Model correct answers:", model.correct)
-print("Model perseverative errors:", model.perseverative_errors)
+print("Model errors:", round(model.errors/total_trials * 100,2), "%") # The percentage of errors, rounded to two decimal points.
+print("Model correct answers:", round(model.correct/total_trials * 100,2), "%") # The percentage of correct answers, rounded to two decimal points.
+print("Model perseverative errors:", round(model.perseverative_errors/total_trials * 100,2), "%") # The percentage of perserverative errors, rounded to two decimal points.
 print("-" * 50) # Seperators.
-
-
-
-
-
 
 
 
