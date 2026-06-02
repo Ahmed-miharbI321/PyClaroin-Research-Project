@@ -22,3 +22,13 @@ In a terminal, navigate to the pyClarion folder then:
 WARNING: Be sure to include the '`.`' in the install commands. Otherwise, your installation will most likely fail.
 
 Developer mode is currently recommended due to the evolving nature of the source code. Prior to installing in this mode, please ensure that the pyClarion folder is located at a convenient long-term location. Installing in developer mode means that changes made to the pyClarion folder will be reflected in the pyClarion package (moving the folder will break the package).
+
+# Research Project Details
+
+Please make sure to install PyClarion or else the project-related files will not be runnable.
+
+The two files related to the research project are contained within the implementation folder.
+
+The agentic implementation is the agentic_CLARION_WCST.py file
+
+The non-agentic implementation is the high_level_CLARION_WCST.py file
