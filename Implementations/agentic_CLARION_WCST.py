@@ -1,7 +1,7 @@
 """
 Fully agentic PyClarion-style WCST implementation.
 
-This is intentionally closer to the style of demos/introduction.ipynb in the
+Implements the pipeline described in demos/introduction.ipynb in the
 pyClarion repository:
 
 1. Keyspace definition.
@@ -9,23 +9,18 @@ pyClarion repository:
 3. Knowledge/state initialization.
 4. Event processing in an external environment loop.
 
-Unlike the earlier high-level implementation, the agent does not directly choose
+Unlike the non-agentic implementation, the agent does not directly choose
 the sorting rule from a hard-coded rule-choice class. It receives a stimulus
 card, selects one of four target cards, receives correct/incorrect feedback, and
-learns how to behave across trials.
+learns how to interct with test across trials.
 
-Cognitive mapping:
+Each CLARION subsystem and its responsibility:
 - NACS/top level: explicit hypotheses over sorting rules.
 - ACS/bottom level: reinforcement learner over rule-use policies.
 - MS: confidence, uncertainty, frustration, and perseveration pressure.
-- MCS-like monitor: learns the approximate set-shift criterion from experience.
+- MCS-like monitor: learns the approximate correct guesses before sorting rule switches from experience.
 
 The tester/environment knows the hidden rule. The agent does not.
-
-Because pyClarion is evolving, this file keeps all PyClarion-dependent code in a
-small number of places. The learning algorithm itself is ordinary Python state
-inside the Agent, while activation passing and action selection are represented
-as PyClarion Input/Choice events.
 """
 
 from __future__ import annotations
@@ -33,15 +28,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from math import exp
 import random
-from typing import Any, Iterable, Mapping, NamedTuple
+from typing import Any, Mapping, NamedTuple
 
 from pyClarion import Agent, Atom, Atoms, Choice, Input
 from pyClarion.knowledge import Buses, Bus, BusFamily, DataFamily, Root
 
-
-# ---------------------------------------------------------------------------
-# 1) Keyspace definition
-# ---------------------------------------------------------------------------
 
 class Color(Atoms):
     red: Atom
@@ -71,7 +62,6 @@ class Rule(Atoms):
 
 
 class Target(Atoms):
-    """The four selectable target cards in a WCST display."""
     t1: Atom
     t2: Atom
     t3: Atom
@@ -118,9 +108,6 @@ class WCSTRoot(Root):
     d: WCSTData
 
 
-# ---------------------------------------------------------------------------
-# 2) Cards and WCST environment
-# ---------------------------------------------------------------------------
 
 class Card(NamedTuple):
     color: Atom
@@ -129,20 +116,11 @@ class Card(NamedTuple):
 
 
 def atom_tail(atom_or_key: Any) -> str:
-    """Human-friendly fallback name for pyClarion Keys/atoms."""
     text = str(atom_or_key)
     return text.split(":")[-1].split(".")[-1].strip("')>")
 
 
 def atom_name_in(atoms: Atoms, atom_or_key: Any) -> str:
-    """Return the declared attribute name for an Atom/Key within an Atoms sort.
-
-    In this PyClarion version, printing an Atom may only show
-    ``<... Atom object at ...>``. The reliable names are the declared class
-    attributes, e.g. ``Target.t4`` or ``Rule.color``. This helper maps values
-    back through those declarations and also handles Keys such as
-    ``Key('d:target:t4')`` returned by Choice.poll().
-    """
     names = getattr(atoms.__class__, "__annotations__", {})
     key_name = atom_tail(atom_or_key)
 
@@ -164,12 +142,6 @@ def atom_name_in(atoms: Atoms, atom_or_key: Any) -> str:
 
 @dataclass
 class WCSTEnvironment:
-    """External WCST tester.
-
-    The environment exposes target cards and stimulus cards, but keeps the hidden
-    rule private. It switches rule after a criterion number of consecutive correct
-    responses, matching the standard WCST category-completion idea.
-    """
 
     root: WCSTRoot
     switch_after_correct: int = 10
@@ -192,11 +164,6 @@ class WCSTEnvironment:
         self.hidden_rule = self.rng.choice(self.rules)
 
     def make_stimulus(self) -> Card:
-        """Generate a card that has one matching target for each possible rule.
-
-        This preserves the WCST ambiguity: before feedback, color/shape/number are
-        all plausible bases for sorting.
-        """
         target_values = list(self.targets.values())
         color_card = self.rng.choice(target_values)
         shape_card = self.rng.choice([c for c in target_values if c is not color_card])
@@ -236,13 +203,8 @@ class WCSTEnvironment:
         self.correct_streak = 0
 
 
-# ---------------------------------------------------------------------------
-# 3) Fully agentic PyClarion agent
-# ---------------------------------------------------------------------------
-
 @dataclass(frozen=True)
 class CognitiveState:
-    """Small state abstraction used by the bottom-level RL learner."""
 
     last_feedback: str
     streak_bucket: str
@@ -250,19 +212,6 @@ class CognitiveState:
 
 
 class FullyAgenticWCSTAgent(Agent):
-    """WCST agent with explicit hypotheses plus learned procedural control.
-
-    The agent learns at two levels:
-
-    1. Explicit NACS-like hypothesis adaptation. Feedback changes the posterior
-       over color/shape/number as possible hidden rules.
-    2. Implicit ACS-like reinforcement learning. Q-values learn which rule-using
-       strategy tends to pay off in cognitive states such as uncertainty,
-       frustration, or possible set-shift.
-
-    The action emitted to the environment is not a rule label. It is a target-card
-    choice. Rule hypotheses are internal causes of target-card actions.
-    """
 
     root: WCSTRoot
     stimulus_in: Input
@@ -296,10 +245,8 @@ class FullyAgenticWCSTAgent(Agent):
         self.rules = [d.rule.color, d.rule.shape, d.rule.number]
         self.targets = [d.target.t1, d.target.t2, d.target.t3, d.target.t4]
 
-        # NACS/top-level explicit posterior over hidden rules.
         self.posterior: dict[Atom, float] = {r: 1.0 / len(self.rules) for r in self.rules}
 
-        # ACS/bottom-level learned procedural values: Q(state, internal-rule-use).
         self.q: dict[tuple[CognitiveState, Atom], float] = {}
         self.alpha = alpha
         self.gamma = gamma
@@ -310,7 +257,6 @@ class FullyAgenticWCSTAgent(Agent):
         self.perseveration_bias = perseveration_bias
         self.frustration_threshold = frustration_threshold
 
-        # Meta-cognitive/MCS-like statistics learned from experience.
         self.learned_shift_criterion: float | None = None
         self.correct_streak = 0
         self.incorrect_streak = 0
@@ -322,8 +268,6 @@ class FullyAgenticWCSTAgent(Agent):
         self.last_rule_to_target: dict[Atom, Atom] = {}
 
         with self:
-            # These are demo-style process definitions: external data enters via
-            # Input processes, and ACS action selection is represented by Choice.
             self.stimulus_in = Input(f"{name}.stimulus_in", root.d)
             self.feedback_in = Input(f"{name}.feedback_in", root.d.feedback)
             self.policy_drive = Input(f"{name}.policy_drive", root.d.target)
@@ -339,13 +283,11 @@ class FullyAgenticWCSTAgent(Agent):
             )
             self.target_choice.input = self.policy_drive.main
 
-    # ----- Agent/environment interface -------------------------------------
 
     def initialize(self) -> None:
         self._send_affect()
         self._run_events()
 
-    # ----- High-level RuleChoice-style helpers -----------------------------
 
     def _rule_name(self, rule_atom: Atom | None) -> str:
         if rule_atom is None:
@@ -353,18 +295,15 @@ class FullyAgenticWCSTAgent(Agent):
         return atom_name_in(self.root.d.rule, rule_atom)
 
     def _reset_posterior(self) -> None:
-        """Reset rule probabilities to the beginning-like uniform state."""
         self.posterior = {r: 1.0 / len(self.rules) for r in self.rules}
 
     def _set_certain(self, rule_atom: Atom) -> None:
-        """Set the chosen rule to probability 1, all others to 0."""
         self.posterior = {r: (1.0 if r == rule_atom else 0.0) for r in self.rules}
 
     def _posterior_is_certain(self) -> bool:
         return any(p == 1.0 for p in self.posterior.values())
 
     def inner_speech(self) -> None:
-        """Print the same high-level choice declarations as RuleChoice.choose_rule()."""
         chosen = self._rule_name(self.last_rule_strategy)
 
         if self.incorrect_streak >= self.frustration_threshold:
@@ -380,23 +319,16 @@ class FullyAgenticWCSTAgent(Agent):
             print("Model (Uncertain): Hmmm... I will match with", chosen + "...")
 
     def perceive(self, stimulus: Card, env: WCSTEnvironment) -> None:
-        """Receive a new card and prepare target-action drives."""
         self.last_stimulus = stimulus
         self.last_rule_to_target = {r: env.target_matching(stimulus, r) for r in self.rules}
 
-        # The current PyClarion Input parser accepts atoms from a single declared
-        # sort/keyspace, but it does not accept `Sort ** Atom` expressions. The
-        # stimulus contains three different feature sorts, so we keep the card as
-        # Python agent state and convert it into target drives below. This is still
-        # agentic: the PyClarion Choice process receives the learned policy drive,
-        # while the environment never reveals the hidden rule.
+       
 
         self._send_policy_drive()
         self.system.schedule(self.target_choice.trigger())
         self._run_events()
 
     def act(self) -> Atom:
-        """Select one of the four target cards."""
         polled = self.target_choice.poll()
         if not polled:
             self.system.schedule(self.target_choice.trigger())
@@ -412,7 +344,6 @@ class FullyAgenticWCSTAgent(Agent):
         return target
 
     def observe(self, feedback_atom: Atom) -> None:
-        """Learn from feedback and prepare for the next trial."""
         reward = 1.0 if feedback_atom == self.root.d.feedback.correct else -1.0
         self.system.schedule(self.feedback_in.send({feedback_atom: 1.0}))
 
@@ -422,22 +353,15 @@ class FullyAgenticWCSTAgent(Agent):
         self.last_feedback_name = atom_name_in(self.root.d.feedback, feedback_atom)
         self._run_events()
 
-    # ----- Learning ---------------------------------------------------------
+  
 
     def _update_high_level_rule_state(self, feedback_atom: Atom) -> None:
-        """
-        Update rule probabilities to mirror the current
-        high_level_CLARION_WCST.RuleChoice implementation.
-        """
 
         if self.last_rule_strategy is None:
             return
 
         correct = feedback_atom == self.root.d.feedback.correct
 
-        # --------------------------------------------------
-        # Incorrect feedback
-        # --------------------------------------------------
         if not correct:
 
             if self.correct_streak > 0 and self.learned_shift_criterion is None:
@@ -469,9 +393,7 @@ class FullyAgenticWCSTAgent(Agent):
 
             return
 
-        # --------------------------------------------------
-        # Correct feedback
-        # --------------------------------------------------
+      
         self.correct_streak += 1
         self.incorrect_streak = 0
 
@@ -491,7 +413,6 @@ class FullyAgenticWCSTAgent(Agent):
 
             return
 
-        # Otherwise remain completely certain.
         self._set_certain(self.last_rule_strategy)
 
     def _update_implicit_q(self, reward: float) -> None:
@@ -504,7 +425,7 @@ class FullyAgenticWCSTAgent(Agent):
         bootstrap = max(self.q.get((next_state, r), 0.0) for r in self.rules)
         self.q[key] = old + self.alpha * (reward + self.gamma * bootstrap - old)
 
-    # ----- Drive construction ---------------------------------------------
+   
 
     def _send_policy_drive(self) -> None:
         explicit = self._explicit_target_drive()
@@ -515,13 +436,9 @@ class FullyAgenticWCSTAgent(Agent):
             drive[t] = self.explicit_weight * explicit.get(t, 0.0)
             drive[t] += self.implicit_weight * implicit.get(t, 0.0)
 
-        # Exploration: small uniform target pressure.
         for t in self.targets:
             drive[t] = (1.0 - self.epsilon) * drive[t] + self.epsilon / len(self.targets)
 
-        # MS/frustration: repeated errors create a mild tendency to repeat the
-        # last response, allowing perseverative errors to emerge rather than be
-        # directly scripted.
         if self.incorrect_streak >= self.frustration_threshold and self.last_target is not None:
             try:
                 last_target = self._key_to_atom(self.last_target, self.root.d.target)
@@ -552,9 +469,7 @@ class FullyAgenticWCSTAgent(Agent):
         return self._normalize(drive)
 
     def _infer_rule_strategy_from_target(self, target: Atom) -> Atom:
-        # A target usually corresponds to exactly one internal rule strategy for
-        # the generated stimulus. If ambiguity happens, choose the strongest
-        # posterior/Q-supported explanation.
+       
         candidates = [r for r, t in self.last_rule_to_target.items() if t == target]
         if not candidates:
             return self.rng.choice(self.rules)
@@ -563,7 +478,6 @@ class FullyAgenticWCSTAgent(Agent):
         state = self._state()
         return max(candidates, key=lambda r: self.posterior.get(r, 0.0) + self.q.get((state, r), 0.0))
 
-    # ----- State, affect, and utility --------------------------------------
 
     def _state(self) -> CognitiveState:
         if self.correct_streak == 0:
@@ -590,9 +504,7 @@ class FullyAgenticWCSTAgent(Agent):
         self.system.schedule(self.affect_out.send({self.current_affect(): 1.0}))
 
     def _run_events(self) -> None:
-        # The introduction notebook uses `for event in agent.run(): ...`; keeping
-        # this helper makes every perception/action/feedback cycle process all
-        # scheduled events before the Python environment continues.
+    
         for _event in self.run():
             pass
 
@@ -613,12 +525,10 @@ class FullyAgenticWCSTAgent(Agent):
 
     @staticmethod
     def _key_to_atom(key: Any, atoms: Atoms) -> Atom:
-        """Robustly translate a pyClarion Key/string/Atom to an Atom."""
         names = getattr(atoms.__class__, "__annotations__", {})
         key_name = atom_tail(key)
 
-        # Choice.poll() often returns Key('d:target:t4'), whose useful part is
-        # the final declared attribute name. Map that directly first.
+       
         if key_name in names:
             return getattr(atoms, key_name)
 
@@ -632,8 +542,6 @@ class FullyAgenticWCSTAgent(Agent):
             except TypeError:
                 pass
 
-        # Fallback for Atoms implementations that are iterable but do not expose
-        # class annotations in the expected way.
         for atom in atoms:
             if key == atom:
                 return atom
@@ -646,9 +554,6 @@ class FullyAgenticWCSTAgent(Agent):
         raise KeyError(f"Could not map selected key {key!r} to an Atom in {atoms!r}")
 
 
-# ---------------------------------------------------------------------------
-# 4) Experiment runner
-# ---------------------------------------------------------------------------
 
 @dataclass
 class TrialRecord:
