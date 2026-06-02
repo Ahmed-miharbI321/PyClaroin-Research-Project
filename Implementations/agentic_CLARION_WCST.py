@@ -727,11 +727,12 @@ def run_wcst(
 
     metrics = {
         "trials": n_trials,
-        "correct": correct_count / n_trials * 100 + "%",
-        "errors": error_count / n_trials * 100 + "%",
-        "perseverative_errors": perseverative_errors / n_trials * 100 + "%",
+        "correct": f"{correct_count / n_trials * 100:.2f}%",
+        "errors": f"{error_count / n_trials * 100:.2f}%",
+        "perseverative_errors": f"{perseverative_errors / n_trials * 100:.2f}%",
         "learned_shift_criterion": (
-            None if agent.learned_shift_criterion is None else round(agent.learned_shift_criterion, 2)
+            None if agent.learned_shift_criterion is None
+            else round(agent.learned_shift_criterion, 2)
         ),
         "q_values_learned": len(agent.q),
     }
